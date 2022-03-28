@@ -1,0 +1,702 @@
+---
+title             : "Meaningful Comparisons with Ordinal-Scale Items"
+shorttitle        : "Meaningful Comparisons"
+
+author: 
+  - name: Martin Schnuerch
+    affiliation: 1
+    corresponding: yes    # Define only one corresponding author
+    email: martin.schnuerch@psychologie.uni-mannheim.de
+    address: Department of Psychology, University of Mannheim, B6, 30--32, 68159 Mannheim
+  - name: Julia M. Haaf
+    affiliation: "2"
+  - name: Alexandra Sarafoglou
+    affiliation: "2"  
+  - name: Jeffrey N. Rouder
+    affiliation: "3,1"
+
+affiliation       :
+  - id: 1
+    institution: University of Mannheim
+  - id: 2
+    institution: University of Amsterdam
+  - id: 3
+    institution: University of California, Irvine
+    
+    
+abstract          : "Ordinal-scale items---say items that assess agreement with a proposition on an ordinal rating scale from *strongly disagree* to *strongly agree*---are exceedingly popular in psychological research.  A common research question concerns the comparison of response distributions on ordinal-scale items across conditions. In this context, there is often a lingering question of whether metric-level descriptions of the results and parametric tests are appropriate.  We consider a different problem, perhaps one that supersedes the parametric-vs-nonparametric issue:  When is it appropriate to reduce the comparison of two (ordinal) distributions to the comparison of simple summary statistics (e.g., measures of location)? In this paper, we provide a Bayesian modeling approach to help researchers perform meaningful comparisons of two response distributions and draw appropriate inferences from ordinal-scale items. We develop four statistical models that represent possible relationships between two distributions: an unconstrained model representing a complex, non-ordinal relationship, a nonparametric stochastic-dominance model, a parametric shift model, and a null model representing equivalence in distribution. We show how these models can be compared in light of data with Bayes factors and illustrate their usefulness with two real-world examples. We also provide a freely available web applet for researchers who wish to adopt the approach."
+  
+keywords          : "Ordinal scales, Likert items, Stochastic dominance, Meaningful comparisons, Bayes factors"
+
+bibliography      : ["lab.bib", "martin.bib"]
+
+floatsintext      : yes
+figurelist        : no
+tablelist         : no
+footnotelist      : no
+linenumbers       : no
+mask              : yes
+draft             : no
+
+
+header-includes:
+   - \usepackage{bm}
+   - \usepackage{pcl}
+   - \usepackage{amsmath}
+   - \usepackage{amssymb}
+   - \usepackage{soul}
+   
+documentclass     : "apa7"
+classoption       : "man"
+biblio-style      : "apa"
+lang              : "en-EN" # Optional, added for clarity
+output: 
+  papaja::apa6_pdf:
+    citation_package: biblatex
+---
+
+```{r}
+library(papaja)
+library(tidyverse)
+library(haven)
+library(cowplot)
+library(lemon)
+library(bridgesampling)
+library(ggpubr)
+source("functions.R")
+source("sampling functions.R")
+source("likertBF.R")
+```
+
+```{r sadnessExample}
+marines <- c(30, 25, 20, 15, 10)
+college <- c(20, 20, 20, 20, 20)
+marine.long <- rep(1:5, marines)
+college.long <- rep(1:5, college)
+tOut <- t.test(college.long, marine.long, var.equal = T)$statistic
+marines2 <- c(40, 15, 5, 10, 30)
+college2 <- c(5, 12, 19, 44, 20)
+marine2.long <- rep(1:5, marines2)
+college2.long <- rep(1:5, college2)
+```
+
+It is hard to overstate the popularity of ordinal data in social science research. Applications of ordinal variables such as *Likert items* to assess respondents' opinions, affective states, or unobservable behavior have become customary in political science, economics, educational research, health sciences, and psychology. Likert items refer to statements or questions with discrete, naturally ordered response categories \parencites{burkner2019, liddell2018}[see also][]{likert1932}. A key question in many applications is how responses on Likert items differ between two conditions (say, two groups of respondents). Although there is near universal recognition that Likert items are ordinal variables, these comparisons are commonly characterized with means and $t$-tests. While some have defended the use of parametric statistics in the context of Likert data [@norman2010], others have criticized it as a biased and error-prone practice [@liddell2018; @winship1984]. The typical recommendation is to rely on nonparametric statistics instead to ensure robust inferences [e.g., @jamieson2004; @kuzon1996; @nanna1998].
+
+The ordinal-vs-metric issue is well known and there is a large body of literature on it \parencite[e.g.,][]{norman2010, liddell2018, nanna1998, burkner2019, mckelvey1975, winship1984, jamieson2004, kuzon1996, clason1994, sullivan2013}.  Following \textcite{townsend1990}, however, we believe that there is a different, far more fundamental issue that has received considerably less attention \parencite[but see][]{clason1994}: In the usual course of testing the effect of condition on some outcome variable, researchers typically rely on the comparison of summary statistics (e.g., measures of central tendency). These comparisons may establish a certain order relationship at the level of this summary statistic, for example, "The mean value is larger in Condition A than in Condition B". They do not imply, however, that this relationship holds in a more general sense, that is, at the level of distributions. In fact, if the relationship between distributions as a whole is qualitatively different from that between the considered summary statistics, a comparison of the latter would not be meaningful and may even mislead the analyst. This state holds across different levels of measurement, and it is true for parametric and nonparametric tests alike.
+
+Based on Townsend's (\citeyear{townsend1990}) theory of hierarchical inference, we argue that when comparing responses on a Likert item between two conditions, researchers should first test for order relationships at the level of distributions. If a certain ordering holds at this level, it is also implied at a lower level, that is, for a summary statistic such as the mean or median. The reverse, of course, is not true.  An ordering may hold for some summary statistic but not for the distribution as a whole, that is, consideration of a summary statistic in this case does not represent the phenomena of interest.  Tests of summary statistics are meaningful in our opinion only when the ordering of the summary statistic indeed represents the ordering of distributions.
+
+This condition where distributions order is called *stochastic dominance*, and it is a well-known concept for example in economics \parencite{abadie2002, levy1992}. Stochastic dominance describes an order relationship between distributions such that one cumulative distribution function is "greater" (or "less") than the other cumulative function for all possible values \parencite{speckman2008}. \textcite{heathcote2010} developed methods to assess stochastic dominance and compared their performance with that of existing procedures (e.g., Kolmogorov-Smirnov tests).  These tests are only suited for continuous data, however, which renders them inappropriate for Likert items. In fact, the limited availability of suitable test procedures may be one of the reasons why stochastic dominance is rarely considered in applications with Likert data \parencite[cf.][]{madden2009, tubeuf2008}. 
+
+In this paper, we provide a Bayes-factor approach to help researchers use data to assess stochastic dominance and draw appropriate inferences from Likert items. In the following, we briefly outline conventional approaches to analyzing Likert items, and highlight the role of stochastic dominance. We then develop four statistical models that represent possible order relationships between two response distributions: An unconstrained model representing a complex, non-ordinal relationship, a nonparametric stochastic-dominance model, a parametric shift model, and a null model representing equivalence in distribution. We show how these models may be evaluated in light of data by means of Bayes factors and present a user-friendly web applet for readers who wish to adopt the analysis in their own research. Finally, we demonstrate the usefulness of the approach by applying it to two real-world examples, and assess the sensitivity of Bayes factor model comparisons to reasonable variations in prior settings. 
+
+
+# Likert-Item Distributions
+
+To illustrate why the parametric-vs-nonparametric debate does not address the heart of the problem, consider the following hypothetical example: Suppose we wanted to compare the frequency of being sad between first-year Marines and first-year college students. From each group, we let 100 individuals indicate on a 5-point Likert item how often they felt sad, with response options ranging from "never" to "always". Table \ref{tab:sadness} shows hypothetical data for two different scenarios labeled plainly Scenario I and Scenario II. For each scenario, we may ask whether there is a difference between Marines and college students. 
+
+```{r sadness, results="asis"}
+labels <- c(" ","Never","Rarely","Sometimes","Often","Always")
+rownames <- rep(c("Marines","College Students"),2)
+tab <- cbind(rownames, rbind(marines, college, marines2, college2))
+colnames(tab) <- labels
+rownames(tab) <- NULL
+apa_table(tab, digits = 0,
+          align = c("l", rep("c", 5)),
+          caption = "Ratings Distributions for Hypothetical Sadness Example.", 
+          note = "Question: How often do you feel sad?",
+          stub_indents = list("Scenario I" = c(1, 2),
+                              "Scenario II" = c(3:4)),
+          midrule=3
+)
+
+```
+
+A nonparametric alternative to $t$-tests for addressing this question is the Wilcoxon rank-sum test. Unlike the $t$-test, the Wilcoxon test does not consider the difference between values but only the rank order. @nanna1998 compared the performance of both tests in the context of Likert data and found that the nonparametric test outperformed the parametric test in terms of Type I error control and statistical power. Despite these differences in performance, both procedures have in common that they compare distributions by comparing central tendencies. In Scenario I, the response distributions of Marines and college students differ in their central tendencies. College students seem to be more often sad than Marines, and both a $t$-test and a Wilcoxon rank-sum test will detect that difference. Importantly, this relationship holds qualitatively across the response scale: College students' reported frequency of being sad is unambiguously higher than that of Marines. 
+
+A different picture emerges in Scenario II: Comparing Marines' and college students' answers by means of central tendencies implies the same ordering as in Scenario I, that is, students seem to report being sad more often than Marines. This ordering is not preserved at the level of distributions, however. While many Marines report *never* being sad, many also report *always* being sad. Thus, tests of central tendencies, parametric and nonparametric test alike, do not allow for a meaningful comparison of conditions \parencite{clason1994}.
+
+<!--
+The heart of the problem is whether there is an order relationship that holds across all category levels (i.e., stochastic dominance). Such an ordering logically implies the same ordering at the level of central tendencies (or other summary statistics), but not vice versa \parencite{heathcote2010}. Thus, rather than debating the use of parametric or nonparametric tests, researchers interested in comparing responses on Likert items across conditions should assess whether stochastic dominance holds. Our argument is based on Townsend's (\citeyear{townsend1990}) theory of hierarchical inference and resonates well with Clason and Dormody's (\citeyear{clason1994}) plea that "statistical procedures that meaningfully answer the research questions, maintain the richness of the data, and are not subject to scaling debates should be the methods of choice in analyzing Likert-type items" (p. 34). 
+-->
+
+
+The crucial difference between the scenarios is that in Scenario I, the distributions are stochastically dominant, whereas in Scenario II, this dominance does not hold.  Stochastic dominance describes the relationship among cumulative probabilities, and for observed data, may be visualized using *cumulative proportions*. Table \ref{tab:sadness2} presents these cumulatives for Scenarios I and II. Each number denotes the proportion of people whose response fell into the respective or a lower category. For example, the first two values for Marines in Scenario I are .30 and .55, and these values indicate that 30% of Marines report to be never sad and 55% report to be either never sad or rarely sad. The key property here is the comparison of these cumulatives to those for college students. The values for college students indicate that only 20% are never sad and 40% are either never or rarely sad. The cumulative proportions for the Marines are always at least as great as those for the college students, and this property holds across all categories.
+
+```{r sadness2, results="asis"}
+labels <- c(" ", "Never", "Rarely", "Sometimes", "Often", "Always", "N")
+rownames <- rep(c("Marines", "College Students"), 2)
+c.marines <- cumsum(marines) / sum(marines)
+c.college <- cumsum(college) / sum(college)
+c.marines2 <- cumsum(marines2) / sum(marines2)
+c.college2 <- cumsum(college2) / sum(college2)
+tab <- cbind(rownames, rbind(c.marines, c.college, c.marines2, c.college2),
+             rep(100, 4))
+colnames(tab) <- labels
+rownames(tab) <- NULL
+apa_table(tab, digits = 0,
+          align = c("l", rep("c", 5)),
+          caption = "Cumulative Proportions for Hypothetical Sadness Example.", 
+          note= "Question: How often do you feel sad?",
+          col_spanners = list("Observed Proportions" =c(2,6)),
+          stub_indents = list("Scenario I" = c(1,2), "Scenario II" = c(3:4)),
+          midrule = 3
+)
+
+```
+
+The pattern is more complex in Scenario II. 65% of Marines report to be sometimes, rarely, or never sad, while only 36% of college students do. Thus, for these three categories, Marines report a lower frequency of being sad than college students. This relationship reverses at *Often*, however. While 80% of college students report to be sad often or less, leaving 20% to be always sad, only 70% of Marines chose *Often* or less, leaving 30% for the highest category. There is no stochastic dominance in this case, Marines are both more frequently never sad and more frequently always sad.
+
+
+# Bayesian Models for Ordinal-Scale Data
+
+
+So far, we focused on cumulative proportions, which are sample-level data. As researchers, however, we are typically interested in the underlying population-level probabilities, that is, the behavior of these proportions in the large-sample limit. To assess whether stochastic dominance holds in population, we need a hypothesis test suitable for ordinal data.
+
+Tests of stochastic dominance that assume continuous data (such as the Kolomogorov-Smirnov test) are not appropriate for Likert data. As an extension of one of these tests, \textcite{yalonetzky2013} developed a method for testing stochastic dominance with ordinal data. The test is based on the asymptotic approximation of the multinomial distribution to a multivariate normal distribution. \textcite{klugkist2010} developed a Bayesian hypothesis testing procedure for inequality/equality constrained hypotheses for contingency tables. This nonparametric approach is very general and allows the analyst to test certain expected orderings of cell probabilities. Thus, the method could be used to test a certain ordering of response probabilities implied by stochastic dominance in Likert data. \textcite{heck2019} discuss a similar approach for testing order constraints, including stochastic dominance, in multinomial models \parencite[see also][]{sarafoglou2021}. 
+
+We suggest a related approach to assessing stochastic dominance with Likert data. Our main goal is to provide four models that encode a series of nested nonparametric and parametric constraints. While the aforementioned methods could also be used to encode and test nonparametric constraints, the approach that we propose makes it straightforward to specify and test both nonparametric and parametric constraints. 
+
+Under the most constrained of the four models, distributions across the two conditions are identical. At the next most constrained level, the distributions differ but this difference is captured in a (semi-) parametric model that underlies *ordinal-regression* (also referred to as *ordered-probit* or *cumulative*) model settings \parencite{burkner2019, mckelvey1975, winship1984, liddell2018}.  In the third model, the semi-parametric form is further relaxed, leaving a model that has only a nonparametric stochastic dominance constraint.  And finally, even this constraint is relaxed, allowing for more complex, non-ordinal relationships.  By comparing the strength of evidence from data for these four models, researchers can make insightful, meaningful comparisons across conditions.
+
+
+
+## Ordinal-Regression Setup
+
+It is convenient to start with the well-known ordinal-regression approach \parencite{mckelvey1975, winship1984}.  Here, the observed variable (i.e., the choice of a response category) results from the categorization of an underlying continuous variable.  Consider a hypothetical survey study where respondents are asked to rate a statement on a 5-point scale ranging from "Strongly Disagree" to "Strongly Agree". The model posits that agreement with this statement can be represented as a continuous, latent variable. This latent variable maps onto rating categories by partitioning the latent space into regions. These regions are defined by thresholds, and the probability of a response falling into a certain category is simply the area under the latent probability distribution between the respective thresholds \parencite{winship1984}. The model setup is illustrated in Figure \ref{fig:ordinalReg}. Note that this setup is conceptually equivalent to that underlying signal-detection theory.
+
+```{r ordinalReg, fig.cap = "Ordinal-Regression Model."}
+knitr::include_graphics("ordinal_model.png")
+```
+
+
+The latent variable is typically assumed to be normally distributed, although the model may be based on other probability distributions \parencite[e.g., a logistic function;][]{burkner2019}. The upper panel of Figure \ref{fig:ordinalReg} shows a latent variable that is partitioned into five regions by four thresholds (represented by the vertical lines). Whenever the latent value exceeds a threshold, the observed response is the associated category (lower panel). Thus, the probability of a latent value falling into a certain region corresponds to the probability of observing the associated response.   For more details, we refer the reader to an accessible tutorial by \textcite{burkner2019}, who provide an extensive overview of this and related models for the analysis of Likert items. 
+
+
+<!--
+The usual aim in analyzing data from Likert items with this model is to estimate the location of the latent distribution and the latent thresholds. In a regression setting, these parameters are expressed as a function of covariates, and the aim is to estimate the influence of these covariates \parencite{burkner2019}. The ordinal-regression model provides for a richer description of ordinal data than models that treat the data as metric, and it is a standard analysis tool for this kind of data \parencite[e.g.,][]{albert1997, liddell2018}. 
+-->
+
+In the usual ordinal-regression approach, the thresholds are fixed across conditions and differences in distributions are captured by shifting the central tendency of the latent distribution.  This usual approach may be considered *semi-parametric* as there is no model on thresholds but a parametric model on the effect of conditions.  We are going to start with a fully *nonparametric* model that is an unconstrained generalization of the ordinal-regression approach, and then add in increasing degrees of constraint. 
+
+We start by setting the latent distribution to a standard normal ($\mu = 0$, $\sigma^2 = 1$).  Note that this does not reflect a substantive assumption about the measurement level or distribution of the latent construct. In this modeling setup, the latent distribution serves merely as a technical device that maps observed response frequencies onto regions on the real line. The  free parameters in this setup are the category thresholds.  Let $\gamma_{ij}$ denote the threshold between response category $j$ and $j+1$ ($j = 1, \ldots, J$) in condition $i$ ($i = 1,2$).  For the setup to be valid, thresholds *within* each condition have to order, that is, $\gamma_{i0} = -\infty \leq \gamma_{i1} \leq \ldots \leq \gamma_{iJ} = \infty$.  At this point, the model is unconstrained, nonparamtric, and vacuous; there are as many parameters as degrees of freedom in the data.  All observed Likert distributions across conditions may be accounted for by appropriate settings of the thresholds. 
+
+To add constraint, it is useful to reparameterize the thresholds as follows:
+\[
+\gamma_{ij} = \alpha_j + x_i\theta_j,
+\]
+where $x_1=-1/2$ and $x_2=1/2$.  Here,  $\alpha_j=(\gamma_{1j}+\gamma_{2j})/2$ is the average for the $j$th threshold, and $\theta_j=\gamma_{2j}-\gamma_{1j}$ is the difference for the $j$th threshold.  The key feature of this parameterization is that $\theta_j$ denotes a comparison of distributions for the $j$th threshold.  Thus, by placing constraints on $\theta_j$, we can model different types of (ordinal) relationships between the two response distributions. 
+
+
+
+```{r basefig, fig.cap = "Ordinal-Regression Setup", fig.subcap = "In this application, the distribution is fixed as a standard normal and the thresholds are free parameters.  Models, depicted across the rows, capture the relations across conditions (college students vs. Marines).", fig.asp = 1.0}
+
+z <- seq(-3.5,3.5,.01)
+c.college <- cumsum(college) / sum(college)
+critC <- qnorm(c.college)[1:4]
+crit <- matrix(nrow = 8, ncol = 4)
+crit[4,] <- critC
+crit[8,] <- critC
+crit[3,] <- critC
+crit[7,] <- critC + .3
+crit[2,] <- .8 * critC
+crit[6,] <- .8 * critC + c(.4,.2,.3,.1)^.5
+crit[1,] <- critC
+crit[5,] <- critC * .5+.2
+
+par(oma = c(0,0,3,0), mar = c(2,1,1,0))
+layout(matrix(ncol = 3, 1:12), widths = c(1,1,.2))
+
+# first
+plot(z, dnorm(z), typ = 'l', axes = FALSE, ylab = "", xlab = "")
+abline(v = crit[1,])
+ex <- c(-3, crit[1,1:4], 3)
+center <- 1:5
+for (i in 2:6) center[i-1] <- (ex[i-1] + ex[i]) / 2
+center[1] <- -1.1
+center[5] <- 1.1
+text(center, .01, c('Never','Rarely','Sometimes','Often','Always'), srt = 90, adj = 0)
+axis(1)
+
+for (i in 2:8){
+  plot(z, dnorm(z), typ='l', axes = FALSE, ylab = "", xlab = "")
+  abline(v = crit[i,])
+  axis(1)
+}
+
+par(mar = c(0,0,0,0), xpd = NA)
+plot(0:1, 0:1, axes = F, ylab = "", xlab = "", typ = 'n')
+text(.1, .5, "Unconstrained", cex = 1.5, adj = .5)
+plot(0:1, 0:1, axes = F, ylab = "", xlab = "", typ = 'n')
+text(.1, .5, "Dominance", cex = 1.5, adj=.5)
+plot(0:1, 0:1, axes = F, ylab = "", xlab = "", typ = 'n')
+text(.1, .5, "Constant\nShift", cex = 1.5, adj = .5)
+plot(0:1, 0:1, axes = F, ylab = "", xlab = "", typ = 'n')
+text(.05, .5, "Null", cex = 1.5, adj = .5)
+
+mtext(outer = T, side = 3, "College", adj = .21, line = 1)
+mtext(outer = T, side = 3, "Marines", adj = .71, line=1)
+
+```
+
+
+## Models
+
+We specify four statistical models on $\theta_j$, each representing a different constraint on the relationship between conditions. The models are shown in Figure \ref{fig:basefig}, illustrating the construction in the context of our hypothetical sadness example (Table \ref{tab:sadness}). 
+
+**Unconstrained Model**:  The first row shows a model that imposes no order constraints on the relationship between conditions. So long as the thresholds order within a condition (which is imposed by the likelihood function), there is no restriction on the values and relative order of thresholds across conditions. We denote this model as $\calM_u$, with $\calM_u\!:\ \theta_j \in \mathbb{R}$. There are $2 \times (J-1)$ free parameters in this model: $J-1$ mean-threshold parameters ($\alpha_j$) and equally many difference parameters ($\theta_j$). The unconstrained model can account for any type of relationship between conditions, including complex relationships where response distributions differ in a way that cannot be captured by an order relationship. 
+
+**Dominance Model:**  The second row shows the dominance model, $\calM_d$.  For this model, there are again a total of $2\times(J - 1)$ free parameters.  To capture the notion of stochastic dominance, however, we impose an order constraint in this model: $\calM_d\!:\ \theta_j \geq 0$.  This constraint implies that thresholds are at least as large---and hence, so are cumulative probabilities---in one condition than in the other one. For the example in Figure \ref{fig:basefig}, $\gamma_{11}$ is the threshold that separates *Rarely* from *Never* for college students, and it has a value of $`r round(crit[2,1],2)`$.  Likewise, the value for Marines is denoted $\gamma_{21}$ and has a value of $`r round(crit[6,1],2)`$.  Here, we see that $\gamma_{21}>\gamma_{11}$---Marines have a higher probability of being never sad than college students.  Importantly, this inequality holds for all corresponding thresholds, that is, because $\theta_j \geq 0$ for all thresholds it follows that $\gamma_{2j} \geq \gamma_{1j}$ for all threshold pairs. 
+
+There are two possible dominance conditions: one in which all $\theta_j \geq 0$ (i.e., $\gamma_{2j} \geq\gamma_{1j}$) and one in which all $\theta_j \leq 0$ (i.e., $\gamma_{2j} \leq \gamma_{1j}$). Whether one or the other or both should be used is a specification decision that researchers should make ahead of time depending on context. We will discuss how these decisions may be made subsequently.  
+
+
+**Constant Shift Model:**  The next row describes a very simple effect where the thresholds in one condition all shift by the same amount compared to the other condition. The model is denoted by  $\calM_1$, and imposes the parametric constraint $\calM_1\!:\ \theta_j = \theta^*$.  In Figure \ref{fig:basefig}, the value of the threshold between *Never* and *Rarely* for Marines is $`r round(crit[7,1], 2)`$, and this value is $`r crit[7,1]-crit[3,1]`$ greater than the bound between *Never* and *Rarely* for college students.  This difference is preserved across corresponding thresholds.  For example, the thresholds between *Rarely* and *Sometimes* are $`r round(crit[7,2], 2)`$ and $`r round(crit[3,2], 2)`$ for Marines and college students, respectively.  The difference, $`r crit[7,2]-crit[3,2]`$, is the same as between *Never* and *Rarely*.  The constant shift model explicitly states that the effect of condition on the ratings can be captured by a single parameter $\theta^*$. It is comprised of $J$ free parameters (i.e., $J - 1$ mean thresholds $\alpha_j$ and one difference $\theta^*$).  We include this model because it corresponds to the probit regression model.  In the probit regression model, the shifts are in the mean of the normal, but this is mathematically equivalent to fixing the mean and shifting all the thresholds by a constant amount.  In our view, the constant-shift model is useful for cases where the effect of condition is relatively straightforward and can be captured by a shift in central tendency.
+
+
+**Null Model:**  The last row depicts the null model which posits that there is no effect of condition. This model is denoted $\calM_0$, and imposes the constraint $\calM_0\!:\ \theta_j = 0$.  Thus, the corresponding thresholds for college students and Marines are identical in this model.  For example, the value of the threshold between *Never* and *Rarely* in Figure \ref{fig:basefig} for college students is $`r crit[4,1]`$, and this value is the same for the threshold between *Never* and *Rarely* for Marines. Because all the corresponding thresholds are the same in value, the distributions are the same as well.  There is no difference among the conditions; hence, there is no effect. The null model has one free parameter for each threshold, that is, $J-1$ parameters in total.  
+
+
+## Priors on Parameters
+
+Our approach is Bayesian, and in Bayesian analysis priors are needed on parameters.  All four models considered here comprise $J-1$ parameters for the mean thresholds $\alpha_j$, so the priors for these parameters should be identical across models. A typical choice for these priors are independent normal distributions \parencite[e.g.,][]{burkner2019, liddell2018}:
+\[
+\alpha_{j} \sim \mbox{Normal}(0,b_\alpha),
+\]
+where $b_\alpha$ is a prior standard deviation setting that must be chosen before analysis. 
+
+In contrast to the priors on $\alpha_j$, the priors on the difference parameters $\theta_j$ reflect the substantively motivated constraints under the four models. As for the mean thresholds, we propose a flexible normal distribution as a basis for these priors. Under $\mathcal M_u$, we specify independent normal distributions for each $\theta_j$:
+$$\theta_j \sim \mbox{Normal}(0,b_\theta),$$
+where $b_\theta$ is again specified before analysis. Under $\mathcal M_d$, truncated normal distributions are placed on $\theta_j$ to impose the notion of stochastic dominance:
+$$\theta_j \sim \mbox{Normal}_T(0,b_\theta),$$
+where $\mbox{Normal}_T$ denotes a normal distribution with either an upper or a lower bound at 0, respectively. Under $\mathcal M_1$, there is just one difference parameter $\theta^*$ and thus,
+$$\theta^* \sim \mbox{Normal}(0,b_\theta).$$
+Finally, no prior on $\theta_j$ is needed under $\mathcal M_0$, as the difference in thresholds between conditions is constrained to be 0. 
+
+Before analysis, researchers can adjust the prior parameters $b_\alpha$ and $b_\theta$ as needed. Thus, the normal prior setting offers the flexibility to provide substantive context through the choice---and range---of these prior parameters. Here is some guidance for setting $b_\alpha$ and $b_\theta$ in practice: Since thresholds are placed on a standard normal, reasonable values of $b_\alpha$ should be around 1.0.  Figure \ref{fig:prior} shows the marginal prior distribution on mean category probabilities across conditions for 5 rating options and for select values of $b_\alpha$.  For $b_\alpha=1$, middle panel, the marginal priors have the same distribution, centered around .2, for each of the five rating options.  Small values of $b_\alpha$ correspond to a belief that extremes are used excessively at the expense of the middle category (left panel); a large value of $b_\alpha$ corresponds to a belief that extremes are used rarely (right panel). The setting $b_\alpha=1$ is a good, weakly informative default, and it is hard to imagine reasonable settings smaller than $1/3$ and larger than 3.
+
+```{r prior, fig.cap="Marginal prior distributions on category probabilities for 5 rating options for select prior standard deviation settings ($b_\\alpha$).",fig.asp=0.5,eval=TRUE, cache=TRUE}
+
+group_labs <- c("Marines", "College")
+cat_labs <- c("Never", "Rarely", "Sometimes", "Often", "Always")
+
+p1 <- makeMargPrior1(b = 1)
+p2 <- makeMargPrior1(b = 3)
+p3 <- makeMargPrior1(b = 1/3)
+
+p <- rbind(p1, p2, p3)
+p %>% 
+  mutate(b = factor(b,
+                    levels = c(1/3, 1, 3),
+                    labels = c(expression(paste(italic(b)[alpha], " = 1/3")),
+                               expression(paste(italic(b)[alpha], " = 1.0")),
+                               expression(paste(italic(b)[alpha], " = 3.0"))))) %>% 
+  ggplot(aes(x = rating, y = prob, fill = b)) +
+  facet_wrap(.~b, labeller = label_parsed) +
+  geom_boxplot(outlier.shape = NA, 
+               ymin = as.vector(tapply(p$prob, list(p$rating, p$b), min)),
+               ymax = as.vector(tapply(p$prob, list(p$rating, p$b), max))) +
+  scale_x_discrete("", 
+                   labels = cat_labs) +
+  theme_classic() +
+  coord_capped_cart(bottom='both', left = "both") +
+  theme(axis.text.x = element_text(angle = 45, 
+                                   vjust = 1,
+                                   hjust = 1,
+                                   color = "black"),
+        axis.ticks.length = unit(.2, "cm"),
+        legend.position = "none") +
+  labs(y = "Probabilities")
+
+```
+
+The prior standard deviation on the difference parameters, in contrast, should typically be much smaller than on the mean thresholds. As for any difference parameter, however, the exact choice depends on the analyst's expectation about how strongly the distributions may differ from each other. Thus, this choice should be determined by substantive, rather than statistical, arguments. For our purposes, we choose a prior standard deviation of $b_\theta = 0.33$, that is, $1/3$ of $b_\alpha$. We address the consequences of this choice and how it affects model comparison results subsequently. 
+
+# Data Visualization
+
+The four models correspond to the following helpful data visualizations.  Much like in signal-detection analysis, the running cumulative proportions become the target for plotting.  Table \ref{tab:sadness2} shows the cumulatives for the two hypothestical sadness scenarios.  The usual approach is to plot *receiver operating characteristic curves* (ROCs), and an example for Scenario I is shown in Figure \ref{fig:rocplot}A.  The levels of constraint are as follows:  If the null model holds, the ROC curve traces the diagonal.  If the shift model holds, then the resulting curve is the  stereotypical one (Figure \ref{fig:rocplot}A) that is common in memory and perception research.  The dominance model implies that the points all lie on one or the other side of the diagonal.  The unconstrained model implies only that the points increase on the $x$ and $y$ axes, respectively (Figure \ref{fig:rocplot}C).  For analyzing real-world contrasts, it is advantageous to plot the differences across the conditions as in Figures \ref{fig:rocplot}B and D.  The advantage here is that it is easier to spot trends because the $y$ axis may be scaled for differences rather than the entire range from 0 to 1.  The constraints now center around the horizontal zero line.  The null model corresponds to this line; the shift and dominance model correspond to curves strictly on one side of it; the unconstrained model has no such constraint.  Figures \ref{fig:rocplot}C and \ref{fig:rocplot}D show the ROC and the difference plot for the data in Scenario II. 
+
+```{r rocplot, fig.cap="ROC and difference plots for the hypothetical data from Scenarios I and II in Table 1", fig.asp=0.9}
+
+roc_a <- roc_plot(data.frame(c.college, c.marines), 
+                  xlab = "College", ylab = "Marines", 
+                  title = "A")
+
+roc_c <- roc_plot(data.frame(c.college2, c.marines2), 
+                  xlab = "College", ylab = "Marines",
+                  title = "C")
+
+myYlim=c(-.4,.4)
+lab1=c("Never","Rarely","Sometimes","Often","Always")
+
+roc_b <- diff_plot(data.frame(c.marines, c.college),
+                   cats=lab1,
+                   ylab="Difference",xlab="",
+                   ylim=myYlim, title = "B")
+
+roc_d <- diff_plot(data.frame(c.marines2, c.college2),
+                   cats=lab1,
+                   ylab="Difference",xlab="",
+                   ylim=myYlim, title = "D")
+
+plot_grid(roc_a, NULL, roc_b, roc_c, NULL, roc_d,
+          ncol = 3, nrow = 2,
+          rel_widths = c(1, .1, 1), align = "h")
+
+```
+
+
+
+# Bayes Factors
+
+We can measure the strength of evidence from the data for the four models using *Bayes factors* [@Jeffreys:1961], which are a measure of how well each model predicted the data before they are observed [@Rouder:Morey:2019].  Readers who are new to Bayes factors are invited to consider one of the many tutorials on their use, and perhaps one of the most helpful resources is the recent 2018 *Psychonomic Bulletin & Review* special issue on Bayesian inference [@Vandekerckhove:etal:2018].
+
+There are many approaches to computing Bayes factors.  For the models developed here, we use two different approaches as follows:  Some models differ in dimensionality.  For example, for $J=5$ response options, there are $2 \times (J-1) = 8$ parameters in the unconstrained model, $(J-1) + 1 = 5$ parameters in the shift model, and $J-1 = 4$ parameters in the null model.  Where the models differ by a relatively small number of parameters, we find that the *bridge sampling* approach proposed by @Meng:Wong:1996 works well.  @Gronau:etal:2017 provide a detailed and accessible tutorial on computing Bayes factors with bridge sampling. The approach has been implemented in an R package by @gronau2020a, which we use in our work as well.
+
+We follow a different approach to compare models that have the same number of parameters, namely, the unconstrained and dominance model.  The dominance model is more constrained by virtue of the inequalities.   Thus, although the models have the same dimensionality, the parameter space for the dominance model is smaller than that for the unconstrained model.  In fact, the unconstrained model *encompasses* the dominance model [@heck2019; @klugkist2010].  When models are encompassed, the Bayes factor may be computed by considering the posterior and prior probabilities of the constraint under the unconstrained model  [@Gelfand:etal:1992].  The resulting Bayes factor between the dominance and the unconstrained model is
+\[
+B_{du} = \frac{Pr(\calM_d|\bfY)}{Pr(\calM_d)}.
+\]
+
+The first step is calculating the denominator, that is, the prior probability that one distribution dominates another. It is straightforward to show that this probability is calculated by $Pr(\calM_d)=2/J$.\footnote{This result was first discovered by simulation. Subsequently, \textcite{Ossadnik:2020} provided a mathematical proof in a non-peer-reviewed blog post.} The next step is calculating the numerator.  In practice, the computation is surprisingly uncomplicated. We follow the approach discussed in @haaf2017, which is based on the pioneering work of @Klugkist:etal:2005a.  One simply counts the relative frequency of posterior samples under $\calM_u$ that satisfy the dominance constraint [see @sarafoglou2021, for an alternative, efficient routine to calculating Bayes factors for order constraints using bridge sampling]. Note that Bayes factors calculated with the encompassing-prior approach are bounded by the prior probability of the constraint under the unconstrained model. Thus, if there is unequivocal evidence that the dominance constraint holds, the Bayes factor may be as large as J/2-to-1. 
+
+As outlined before, there are two dominance conditions because either distribution could possibly dominate the other. A test of stochastic dominance can be two-sided if there is no prediction about which distribution dominates the other.  In this two-sided case, the prior probability of stochastic dominance is $Pr(\calM_d)=2/J$. In the case of a directed test, that is, where a researcher *a priori* predicts that one distribution dominates the other and not the reverse, the prior probability of the constraint is $1/2 \times 2/J = 1/J$.  The posterior probability is estimated as the relative frequency of posterior samples in the predicted direction only. If stochastic dominance is observed in this predicted direction, the corresponding Bayes factor will yield stronger evidence than in the two-sided case. Thus, if theoretical considerations indicate a dominance relation in a specific direction, the Bayes factor should be calculated accordingly. 
+
+We do not recommend that researchers compare both stochastic dominance models with one in each direction.  This recommendation is a matter of judgment.  The motivation is that model comparison and testing should occur when researchers have good reason to suspect an effect in a theoretically meaningful direction.  When researchers have no such reasons, exploratory approaches may be more appropriate than model comparison.
+
+
+# Software for Computing Bayes Factors
+
+We created a user-friendly R web applet for analysis.  The user inputs the frequency counts in two conditions such as in Table \ref{tab:sadness}.  The outputs are Bayes factors for the four models.  Additional prior inputs, such as the standard deviations $b_\alpha$ and $b_\theta$ may be provided as well.  The web applet is available at \url{https://martinschnuerch.shinyapps.io/likertBF/}; the underlying source code as well as a set of useful R functions are available at \url{https://github.com/mschnuerch/likertBF}.
+
+We illustrate this applet with the example data about sadness in Marines and college students, Scenario I. A screenshot of the applet while analyzing the data is shown in Figure \ref{fig:screenshot}. Once the data are inputted, we may press "Plot Data," and under "Data Visualization," we may see the diagnostic plots that are shown in Figure \ref{fig:rocplot}.  Then, to compute Bayes factors, we may press "Start Analysis," and after some time for sampling, the Bayes factors are returned.  We may even choose which dominance model we wish by selecting the respective output option.  Let's say *a priori* we may have thought college students would be more often happy. Because we entered the Marines under Condition 1 and the scale ranges from "never sad" to "always sad", we specify the one-sided dominance model as "2 > 1".  The results, shown in the center panel, clearly indicate that the constant shift model is preferred. Finally, by clicking "Plot MCMC", we can visually inspect MCMC samples from the unconstrained model for $\alpha_j$ and $\theta_j$. 
+
+```{r screenshot, fig.cap="Screenshot of the R web applet for Bayes factor analysis of ordinal-scale items. The analyzed data correspond to the hypothetical Scenario I in Table 1."}
+knitr::include_graphics("screenshots/applet.jpg")
+```
+
+
+# Applications
+
+In this section, we provide two real-world examples of these fine-grained analyses.  The first example comes from @Collingwood:etal:2018 who asked respondents their opinions about controversial policies of the US administration under former president Donald Trump, including the ban on immigration from select Islamic nations and the continuation of the Keystone pipeline project.\footnote{The data set is publicly available from https://github.com/PerceptionAndCognitionLab/bf-likert} Collingwood et al. (2018) conducted two survey waves: one when the policy was proposed and the other during implementation.  The observed proportions and sample sizes are shown in Table \ref{tab:ban}.
+
+```{r collingwood, cache=TRUE,results="hide", warning=FALSE, message=FALSE}
+
+dat <- read_csv("data_collingwood_2018.csv", show_col_types = FALSE)
+
+immBan <- pipeline(table(dat$eo_banimm),
+                   table(dat$eo_banimm_w2))
+
+keystone <- pipeline(table(dat$eo_keystone),
+                     table(dat$eo_keystone_w2))
+
+```
+
+```{r ban, results="asis",eval=TRUE}
+labels <- c(" ","Strongly Disagree","Disagree","Neutral","Agree","Strongly Agree","N")
+rownames <- rep(c("First Wave","Second Wave"), 2)
+prop <- round(rbind(immBan$prop, keystone$prop), 2)
+N <- c(immBan$tot, keystone$tot)
+#m <- round(c(immBan$m, keystone$m), 2)
+#BF <- round(c(immBan$bf[1], keystone$bf[1]),3)
+#BFstr <- as.vector(rbind(BF, c("","","")))
+tab <- cbind(rownames, prop, N)
+colnames(tab) <- labels
+rownames(tab) <- NULL
+apa_table(tab, format = "latex",
+          caption="Ratings Distributions from Collingwood et al. (2018).",
+          col_spanners = list("Observed Proportions"=c(2,6)),
+          stub_indents = list("Immigration Ban$^1$"=c(1,2),
+                              "Keystone Pipeline$^2$"=c(3:4)),
+          midrules=c(3),
+          note= "1. Agreement with President Trump’s executive order restricting immigration from Syria, Iran, Iraq, Libya, Yemen, Somalia, and Sudan. 2. Agreement with President Trump’s executive order allowing for the Keystone and Dakota Access Pipelines.",
+          align='lccccccc')
+```
+
+The second example comes from the Pew Research Center's *Election News Pathways Project* [@pewresearch:2020].  Over $11,000$ respondents were surveyed about their perception of the Covid-19 pandemic in late March, 2020.\footnote{The data set is freely available upon registration from https://www.pewresearch.org/politics/dataset/american-trends-panel-wave-64/}  We contrast two questions: In one, participants were asked to rate how well US President Trump was responding to the pandemic; in the other, they were asked to rate how well their respective state leaders were responding to the pandemic.  The observed proportions and sample sizes are shown in the panel labeled *All* in Table \ref{tab:path1}.
+
+```{r pathway, cache=TRUE,results="hide", warning=FALSE, message=FALSE}
+dat <- read_spss("atp64.sav")
+covid.y1 <- dat %>% 
+  group_by(COVIDEGFP_a_W64) %>% 
+  dplyr::summarise(count = sum(WEIGHT_W64),
+                   .groups = "drop") %>% 
+  dplyr::select(count) %>% 
+  unlist()
+covid.y2 <- dat %>% 
+  group_by(COVIDEGFP_b_W64) %>% 
+  dplyr::summarise(count = sum(WEIGHT_W64),
+                   .groups = "drop") %>% 
+  dplyr::select(count) %>% 
+  unlist()
+covid <- pipeline(round(covid.y1[1:4],0), round(covid.y2[1:4],0),
+                  small = rep(2e-5, 2))
+```
+
+```{r pathwayBreakdown, cache=T,results="hide", warning=FALSE, message=FALSE}
+covidAll.T <- round(tapply(dat$WEIGHT_W64,list(dat$F_PARTYSUM_FINAL,dat$COVIDEGFP_a_W64),sum)[1:2,1:4],0)
+covidAll.S <- round(tapply(dat$WEIGHT_W64,list(dat$F_PARTYSUM_FINAL,dat$COVIDEGFP_b_W64),sum)[1:2,1:4],0)
+
+dem <- pipeline(covidAll.T[2,], covidAll.S[2,], small = rep(5e-5, 2))
+rep <- pipeline(covidAll.T[1,], covidAll.S[1,], small = rep(5e-5, 2))
+```
+
+```{r path1,results="asis",eval=TRUE}
+labels <- c(" ","Excellent","Good","Fair","Poor","N")
+rownames <- rep(c("Trump","State Officials"), 3)
+prop <- round(rbind(covid$prop, dem$prop,rep$prop), 2)
+N <- c(covid$tot, dem$tot, rep$tot)
+# m <- round(c(covid$m, dem$m, rep$m), 2)
+tab <- cbind(rownames, prop, N)
+colnames(tab) <- labels
+rownames(tab) <- NULL
+apa_table(tab, format = 'latex', escape = FALSE,
+          align = c('lcccccc'),
+          stub_indents = list("All" = c(1,2),
+                              "Democrats" = c(3:4),
+                              "Republicans" = c(5:6)),
+          midrules = c(3,6),
+          col_spanners = list("Observed Proportions" = c(2,5)),
+          note="How would you rate the job each of the following is doing responding to the coronavirus outbreak? A. Donald Trump.  B. Your elected state officials.",
+          caption="Ratings Distributions from the Election News Pathway Project.")
+```
+
+Collingwood et al. (2018) claimed that the Muslim immigration ban became more popular after it was implemented.   We use the four models to assess whether there really was an effect, and if so, whether it may be captured with an order relationship as implied by the dominance and shift models.  Figure \ref{fig:diffplot}, top left, shows the difference in cumulatives.  As can be seen, the curve does not cross the zero-line, indicating the plausibility of stochastic dominance.  The Bayes factors for the four models are shown in Table \ref{tab:bfApp}.  As expected, the winning model is the shift model, followed by the one-sided dominance model and the null model.  Hence, we conclude that there is (weak) evidence for an effect. The effect is simple and can be reduced to an order relationship that seems to be well described as a shift in probit space.  The same analysis may be applied to the question about the Keystone pipeline.   For these data, the null has a Bayes factor of at least 2.5-to-1 against any competitor indicating anecdotal evidence for a lack of an effect of wave on the ratings distribution.
+
+```{r bfApp,results="asis",eval=TRUE}
+rownames <- c("Immigration Ban","Keystone Pipeline","Covid, All","Covid, Democrats","Covid, Republicans")
+bf <- cbind(rbind(
+  immBan$bf[c(1,2,5)],
+  keystone$bf[c(1,2,5)],
+  covid$bf[c(1,2,3)],
+  dem$bf[c(1, 2, 5)],  #hack here, couldnt find bug in kable
+  rep$bf[c(1, 2, 4)]),
+  c(1,1,1,1,1))
+
+bfMax <- apply(bf,1,max)
+vals <- as.matrix(bf/bfMax)
+colnames(vals) <- NULL
+tab <- data.frame(rownames, vals)
+rownames(tab) <- NULL
+colnames(tab) <- c(" ", "Null", "Shift", "Dominance", "Unconstrained")
+apa_table(tab,format = 'latex', align = c('lccccc'),
+          caption = "Bayes Factors for Empirical Examples.",
+          note = "The winning model is assigned a value of 1.00.  Bayes factors for all other models are relative to this winning model."
+)
+```
+
+Perhaps the most interesting data are those about leadership in  the Covid-19 pandemic.  Here, we have strong evidence for an indominant effect.  The unconstrained model is preferred by several hundred orders of magnitude to any competitor.  Donald Trump seems to be a polarizing figure compared to state leaders.  People were more likely to give Donald Trump extreme ratings than state leaders.  This polarization may be seen in the difference plot in Figure \ref{fig:diffplot} (bottom right panel).  Here, the curve crosses zero, and though the deflection may appear slight, it is highly evidential because the sample sizes are so large.  Accordingly, it makes little sense to discuss whether Donald Trump is viewed as having responded better or worse than local leaders.  
+
+```{r diffplot, fig.cap="Difference plots for the real-world data in Tables 3 and 4.  There is evidence for a constant shift in the top-left panel and evidence for a lack of an effect in the top-right panel. In the middle-left panel, there is strong evidence for an indominant effect, while there is evidence for stochastic dominance in the remaining figures.", fig.asp=1.1}
+myYlim <- c(-.25,.25)
+myYlim2 <- c(-.3,.6)
+lab1 <- c("S Disagree","Disagree","Neutral","Agree","S Agree")
+lab2 <- c("Excellent","Good","Fair","Poor")
+
+p1 <- diff_plot(t(immBan$cum[2:1,]),cats = lab1,
+                ylab = "Difference", xlab = "",
+                ylim = myYlim, title = "Immigration Ban",
+                plot.title = element_text(hjust = 0.5))
+
+p2 <- diff_plot(t(keystone$cum[2:1,]),cats = lab1,
+                ylab = "Difference",xlab = "",
+                ylim = myYlim, title = "Keystone", 
+                plot.title = element_text(hjust = 0.5))
+
+p3 <- diff_plot(t(covid$cum[2:1,]),cats = lab2,
+                ylab = "Difference",xlab = "",
+                ylim = myYlim2, title = "Covid, All", 
+                plot.title = element_text(hjust = 0.5))
+
+p4 <- diff_plot(t(dem$cum[2:1,]),cats = lab2,
+                ylab = "Difference",xlab = "",
+                ylim = myYlim2, title = "Covid, Democrats", 
+                plot.title = element_text(hjust = 0.5))
+
+p5 <- diff_plot(t(rep$cum[2:1,]),cats = lab2,
+                ylab = "Difference",xlab = "",
+                ylim = myYlim2, title = "Covid, Republicans", 
+                plot.title = element_text(hjust = 0.5))
+
+
+plot_grid(p1, NULL, p2, p3, NULL, p4, p5,
+          ncol = 3, nrow = 3,
+          rel_widths = c(1, .1, 1),
+          rel_heights = c(1.1, 1, 1))
+```
+
+The complexity of the effect is easily resolved in this case by conditioning the data on political-party preference.  Among those that are Republican, Donald Trump is judged quite well in responding to the crisis; among those that are Democratic, he is judged quite poorly.  This partisan divide is not present among state leaders.  Thus, when we condition responses on political-party preference, the dominance model in the expected direction wins.  
+
+# Sensitivity To Prior Settings
+
+The Bayesian analysis presented here requires the analyst to set the prior standard deviations on mean bounds and effects ($b_\alpha$, $b_\theta$).  Such requirements have given some researchers pause in adopting Bayesian methods. It seems reasonable as a starting point to require that if two researchers run the same experiment and obtain the same data, they should reach similar, if not the same, conclusions.  To harmonize Bayesian inference with this starting point, some analysts actively seek to minimize these effects by choosing likelihoods, prior parametric forms, and heuristic methods of inference so that variation in prior settings have minimal influence [@Aitkin:1991; @Gelman:etal:2004; @Kruschke:2013; @Spiegelhalter:etal:2002]. 
+
+We reject the starting point above including the view that minimization of prior effects is necessary.  The choice of prior settings is important because it affects the models' predictions about data.  Therefore, these settings necessarily affect model comparison.  Whatever this effect, it is the degree resulting from the usage of Bayes rule, which in turn mandates that evidence for competing models is the degree to which they improve predictive accuracy.
+
+When different researchers use different priors, they may arrive at different opinions about the data.  This variation is not problematic, however, so long as various prior settings are *justifiable*:  The variation in results reflects the legitimate diversity of opinion [@Rouder:etal:2016b].  When different reasonable prior settings suggest conflicting conclusions, the data simply do not afford the precision to arrive at a clear verdict between the positions. 
+
+With this argument as context, we may assess whether reasonable variation in prior settings affect Bayes factor conclusions among the models.  In Figure \ref{fig:prior}, we show that $b_\alpha=1$ is a good default choice for the prior on $\alpha_j$, and this choice may be made without undue influence on model comparison results. The prior choice on the difference parameters $\theta_j$ is more consequential. For the previous analysis, we specified $b_\theta = 1/3$. For this setting, we consider a range from $1/6$ (1/2 the original setting) to $2/3$ (2 times the original setting) to be reasonable. Values of $b_\theta < 0.17$ place excessive weight on extremely small differences between conditions, while values of $b_\theta > 0.67$ place excessive weight on overwhelmingly large differences. 
+
+```{r sens1, cache=TRUE,eval=TRUE,results="hide", warning=FALSE, message=FALSE}
+myB = list(
+  c(1, 1/6), 
+  c(1, 1/4), 
+  c(1, 1/3), 
+  c(1, 1/2),
+  c(1, 2/3)
+  )
+
+t1 <- myB %>%
+  map_df(.f = likertBF,
+         df = cbind(round(covid.y1[1:4]/10,0), round(covid.y2[1:4]/10,0))) %>%
+  select(1:3) %>%
+  mutate(U = 1)
+bfMax <- apply(t1, 1, max)
+t1 <- t1 / bfMax
+
+
+t2 <- myB %>%
+  map_df(.f = likertBF,
+         df = cbind(round(covidAll.T[1,]/10,0), round(covidAll.S[1,]/10,0))) %>%
+  select(c(1, 2, 4)) %>%
+  mutate(U = 1)
+bfMax <- apply(t2, 1, max)
+t2 <- t2/bfMax
+```
+
+To see how variation in this prior setting affects the Bayes factors, we use a modified version of the Election News Pathways Project data.  Unfortunately, with $11,000$ observations, the sample size is quite large to be typical of psychological data.  A more typical set would have fewer observations, and so for the purposes here we took the frequencies in Table \ref{tab:path1} and divided them by 10.  We used the complete data set with both Republicans and Democrats because here we found strong evidence for an indominant effect.  Along with these data, we used the subset of Republicans as these showed evidence for a simpler structure, namely, stochastic dominance.  
+
+The Bayes factors for the modified data set with the same prior setting as in the previous analysis ($b_\alpha = 1.0$ and $b_\theta = 1/3$) are shown in Table \ref{tab:bfSens}. Without considering political-party preference, the unconstrained model is still preferred over the others. The closest competitor is the dominance model, and the corresponding Bayes factor is approximately 10-to-1. The reason this value is more moderate than that in Table \ref{tab:path1} reflects the reduced sample size.  Among Republicans, the dominance model is again preferred over the unconstrained model by a factor of approximately 3-to-1. The question is whether these two values depend heavily on the range of prior settings.
+
+```{r bfSens,results="asis",eval=TRUE}
+rownames <- c("Covid, All", "Covid, Republicans")
+bf <- rbind(as.numeric(t1[3,]),
+            as.numeric(t2[3,]))
+tab <- data.frame(rownames, bf)
+rownames(tab) <- NULL
+colnames(tab) <- c(" ","Null","Shift","Dominance","Unconstrained")
+apa_table(tab, format = 'latex', align = c('lccccc'),
+          caption = "Bayes Factors for Modified Election News Pathways Project Data.",
+          note = "The winning model is assigned a value of 1.00.  Bayes factors for all other models are relative to this winning model."
+)
+```
+
+The dependence is shown in Figure \ref{fig:sensPlot}.  Here, Bayes factors of all models against the preferred model within three orders of magnitude ($10^{-3}$) are displayed. Although the exact figures vary slightly, there is no consequential dependence of Bayes factors across the reasonable range of prior settings. Both for the complete set (left panel) and the subset (right panel), the winning model is preferred over its nearest competitor by a relatively constant amount. Hence, the Bayes factor method provides for evidence that is fairly robust to reasonable variation in prior expectations about data.
+
+```{r sensPlot, fig.cap="Dependence of Bayes factors on prior standard deviation setting ($b_\\theta$) for 1/10th of the Election News Pathways Project data.  Only models with Bayes factors within three orders of magnitude ($10^{-3}$) against the preferred model are shown.", eval=TRUE, warning=FALSE, message=FALSE, fig.asp=.5}
+my_theme <-  theme_classic() + 
+  theme(panel.border=element_blank(), 
+        axis.line = element_line(), 
+        axis.ticks = element_line(color='black'),
+        axis.ticks.length.x = unit(.2, "cm"),
+        axis.ticks.length.y = unit(.1, "cm"),
+        axis.text.x = element_text(color = "black",
+                                   vjust = -2),
+        axis.text.y = element_text(color = "black",
+                                   hjust = 1),
+        axis.title.x = element_text(vjust = -3),
+        text = element_text(size = 10),
+        plot.title = element_text(size = 10))
+
+labls <- c("1/6", "1/4", "1/3", "1/2", "2/3")
+
+pa <- t1 %>%
+  mutate(setting = 1:5) %>%
+  pivot_longer(cols = 1:4,
+               names_to = "model",
+               values_to = "bf") %>%
+  mutate(model = dense_rank(model),
+         model = factor(model, labels = c("Null", "Shift", "Dominance", "Unconstrained"))) %>%
+  ggplot(aes(setting, bf)) +
+  geom_line(aes(group = model),
+            lwd = .5,
+            linetype = "solid") +
+  geom_point(aes(shape = model), size = 2.5, fill = "white") +
+  scale_y_log10("Order of Magnitude",
+                limits = 1*10^c(-60, 0),
+                breaks = 1*10^seq(-3, 0, .1),
+                labels = as.character(c(0.001, rep("", 9), 
+                                        0.01, rep("", 9),
+                                        0.1, rep("", 9),
+                                        0))) +
+  scale_shape_manual(element_blank(),
+                     limits = c("Shift", "Dominance", "Unconstrained"),
+                     values = c(4, 16, 8)) +
+  scale_x_continuous(expression(paste("Prior Standard Deviation on ", theta[j])),
+                     breaks = 1:5,
+                     labels = labls) +
+  my_theme +
+  coord_capped_cart(bottom='both', left = "both",
+                    ylim = 1*10^c(-3, 0)) +
+  ggtitle("All")
+
+
+pb <- t2 %>%
+  mutate(setting = 1:5) %>%
+  pivot_longer(cols = 1:4,
+               names_to = "model",
+               values_to = "bf") %>%
+  mutate(model = dense_rank(model),
+         model = factor(model, labels = c("Null", "Shift", "Dominance", "Unconstrained"))) %>%
+  ggplot(aes(setting, bf)) +
+  geom_line(aes(group = model),
+            lwd = .5,
+            linetype = "solid") +
+  geom_point(aes(shape = model), size = 2.5, fill = "white") +
+  scale_y_log10("Order of Magnitude",
+                limits = 1*10^c(-60, 0),
+                breaks = 1*10^seq(-3, 0, .1),
+                labels = as.character(c(0.001, rep("", 9), 
+                                        0.01, rep("", 9),
+                                        0.1, rep("", 9),
+                                        0))) +
+  scale_shape_manual(element_blank(),
+                     limits = c("Shift", "Dominance", "Unconstrained"),
+                     values = c(4, 16, 8)) +
+  scale_x_continuous(expression(paste("Prior Standard Deviation on ", theta[j])),
+                     breaks = 1:5,
+                     labels = labls) +
+  my_theme +
+  coord_capped_cart(bottom='both', left = "both",
+                    ylim = 1*10^c(-3, 0)) +
+  ggtitle("Republicans")
+
+
+ggpubr::ggarrange(pa, pb, # list of plots
+                  labels = "",# labels
+                  common.legend = T, # COMMON LEGEND
+                  legend = "bottom", # legend position
+                  align = "hv", # Align them both, horizontal and vertical
+                  ncol = 2)
+```
+
+# Conclusion
+
+Although the use of Likert items is exceedingly popular, we argue here that researchers have overlooked a defining primitive in analysis [@townsend1990]. Instead of debating the use of parametric vs. nonparametric statistics, we should assess whether or not two response distributions can be meaningfully compared by means of their central tendencies. If there is no order relationship at the level of distributions (i.e., no stochastic dominance), common parametric and even nonparametric tests of differences miss the underlying structure and may mislead the analyst [@clason1994].
+
+The statistical models developed herein allow for a more fine-grained analysis of Likert and other ordinal-scale items. The null, constant shift, dominance, and unconstrained models provide for a rich description of possible structure in the relationship between two distributions, and strength of evidence from data for them may be stated via Bayes factors.  The models as well as the Bayes factor comparisons are straightforward and computationally convenient. We demonstrated their usefulness with two real-world examples and created an easily accessible, user-friendly, freely available web applet for researchers. 
+
+Although we think that researchers will benefit from the development presented herein, there are also limitations. So far, the development only applies to the comparison of two independent distributions.  Of course, psychologists are often interested in more complicated designs.  For example, the data from Collingwood et al. (2018) are panel data in which the same people answered in both waves.  We do not take into account any shared variation from the panel design.  Moreover, analysis is not always run for a single item across just two levels of a covariate.  It is more typical to use multiple items to construct latent Likert scales.  And in this case, questions about a shift or stochastic dominance in the data should be addressed at the scale level.  
+
+It is one of the strengths of the proposed analysis framework that it affords the flexibility to incorporate other types of constraints and data structures. In this paper, we focused on the common case of comparing two independent response distributions on a single Likert item. However, future efforts may be devoted to extending our approach to formulate and test other types of constraints across more than two conditions and with multiple items (i.e., Likert scales). At this point, our development constitutes only a useful first step toward a more complete framework of meaningful analysis of ordinal-scale items.   
+
+\newpage
+# Contributions
+
+The first author contributed to the theoretical development and implementation of the models, the Gibbs sampler, and the bridge sampling routine, developed and implemented the web applet, acquired and analyzed the data, and drafted and revised the manuscript; the second author contributed to the theoretical development of the models and revised the manuscript; the third author contributed to the theoretical development of the models and revised the manuscript; the last author contributed to the theoretical development and implementation of the models, the Gibbs sampler, and the bridge sampling routine, acquired and analyzed the data, and drafted and revised the manuscript. 
+
+# Competing Interests
+
+The authors declare no competing interests. The second author is an associate Editor at *Collabra: Psychology*.
+
+# Acknowledgements
+
+We are grateful to Matthias Ossadnik who provided the proof about the prior probability of stochastic dominance.
+
+# Funding Information
+
+The first and the last author were supported by a grant from the German Research Foundation to the research training group Statistical Modeling in Psychology (GRK 2277); the third author was supported by a Van der Gaag Fund, Royal Netherlands Academy of Arts & Sciences.
+
+# Data Accessibility Statement
+
+The data used in the first real-world application example by @Collingwood:etal:2018 are available from https://github.com/PerceptionAndCognitionLab/bf-likert. The data for the second example by @pewresearch:2020 are freely available upon registration from https://www.pewresearch.org/politics/dataset/american-trends-panel-wave-64/. All code for analyses and figures is included in the R Markdown file of this manuscript. The Markdown file and supporting files are curated at https://github.com/PerceptionAndCognitionLab/bf-likert.
